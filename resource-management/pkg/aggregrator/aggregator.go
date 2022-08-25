@@ -63,6 +63,7 @@ type PullDataFromRRM struct {
 const (
 	DefaultBatchLength = 20000
 	httpPrefix         = "http://"
+	defaultPullInterval = 10 * time.Millisecond // 10ms as default pull interval
 )
 
 // Initialize aggregator
@@ -101,14 +102,13 @@ func (a *Aggregator) Run() (err error) {
 			c := a.createClient(a.urls[i])
 
 			klog.V(3).Infof("Starting loop pulling nodes from region: %v", a.urls[i])
-			for {
-				// For performance increasing, change interval from 100ms to 10ms
-				time.Sleep(10 * time.Millisecond)
 
+			for {
 				// Call the Pull methods
 				// when composite RV is nil, the method initPull is called;
 				// otherwise the method subsequentPull is called.
 				// To simplify the codes, we use one method initPullOrSubsequentPull instead
+				startPullAndProcess := time.Now()
 				regionNodeEvents, length = a.initPullOrSubsequentPull(c, DefaultBatchLength, crv)
 				if length != 0 {
 					klog.V(4).Infof("Total (%v) region node events are pulled successfully in (%v) RPs", length, len(regionNodeEvents))
@@ -135,6 +135,13 @@ func (a *Aggregator) Run() (err error) {
 					if eventProcess {
 						a.postCRV(c, crv)
 					}
+				}
+
+				endPullAndProcess := time.Now()
+
+				completeDuration := endPullAndProcess.Sub(startPullAndProcess)
+				if defaultPullInterval > completeDuration {
+					time.Sleep(defaultPullInterval - completeDuration)
 				}
 			}
 		}(i)

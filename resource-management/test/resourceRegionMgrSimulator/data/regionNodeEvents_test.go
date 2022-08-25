@@ -53,13 +53,13 @@ func TestGetRegionNodeModifiedEventsCRV(t *testing.T) {
 	// 29.219756ms -> 4.096µs
 	duration = time.Since(start)
 	assert.NotNil(t, modifiedEvents)
-	assert.Equal(t, 10, len(modifiedEvents))
-	t.Logf("Time to get %d update events: %v", count, duration)
+	assert.Equal(t, rpNum, len(modifiedEvents))
+	t.Logf("Time to get %d update events in Daily data pattern: %v", count, duration)
 	assert.Equal(t, uint64(atEachMin10), count)
 
 	//check remaining event list
-	assert.Equal(t, 10, len(RegionNodeUpdateEventList))
-	for i := 0; i < 10; i++ {
+	assert.Equal(t, rpNum, len(RegionNodeUpdateEventList))
+	for i := 0; i < rpNum; i++ {
 		assert.Nil(t, nil, RegionNodeUpdateEventList[i])
 	}
 
@@ -78,13 +78,39 @@ func TestGetRegionNodeModifiedEventsCRV(t *testing.T) {
 	// 3.987µs
 	duration = time.Since(start)
 	assert.NotNil(t, modifiedEvents)
-	assert.Equal(t, 10, len(modifiedEvents))
-	t.Logf("Time to get %d update events: %v", count, duration)
+	assert.Equal(t, rpNum, len(modifiedEvents))
+	t.Logf("Time to get %d update events in Daily data pattern: %v", count, duration)
 	assert.Equal(t, atEachMin10*2, int(count))
 
 	//check remaining event list
-	assert.Equal(t, 10, len(RegionNodeUpdateEventList))
-	for i := 0; i < 10; i++ {
+	assert.Equal(t, rpNum, len(RegionNodeUpdateEventList))
+	for i := 0; i < rpNum; i++ {
+		assert.Nil(t, nil, RegionNodeUpdateEventList[i])
+	}
+
+	// generate update node events of Outage pattern
+	makeOneRPDown()
+
+	// get update nodes
+	for j := 0; j < location.GetRPNum(); j++ {
+		rvLoc := types.RvLocation{
+			Region:    location.Region(RegionId),
+			Partition: location.ResourcePartition(j),
+		}
+		rvs[rvLoc] = uint64(nodesPerRP)
+	}
+	start = time.Now()
+	modifiedEvents, count = GetRegionNodeModifiedEventsCRV(rvs)
+	// 38.041491ms -> 3.929264ms on AWS EC2 instance (t2.2xlarge - 8 vcpu/32G memory)
+	duration = time.Since(start)
+	assert.NotNil(t, modifiedEvents)
+	assert.Equal(t, rpNum, len(modifiedEvents))
+	t.Logf("Time to get %d update events in Outage data pattern: %v", count, duration)
+	assert.Equal(t, uint64(nodesPerRP), count)
+
+	//check remaining event list
+	assert.Equal(t, rpNum, len(RegionNodeUpdateEventList))
+	for i := 0; i < rpNum; i++ {
 		assert.Nil(t, nil, RegionNodeUpdateEventList[i])
 	}
 }

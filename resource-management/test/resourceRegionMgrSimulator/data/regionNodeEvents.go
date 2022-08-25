@@ -185,34 +185,38 @@ func makeOneRPDown() {
 	selectedRP := int(rand.Intn(RpNum))
 	klog.V(3).Infof("Generating all node down events in selected RP (%v) is starting", selectedRP)
 
-	eventsPerRP := RegionNodeEventsList[selectedRP]
-
-	// Search the nodes in the RP to get the highestRV
-	var highestRVForRP uint64 = 0
-	length := len(eventsPerRP)
-	for k := 0; k < length; k++ {
-		currentResourceVersion := eventsPerRP[k].Node.GetResourceVersionInt64()
-		if highestRVForRP < currentResourceVersion {
-			highestRVForRP = currentResourceVersion
-		}
+	// Get the highestRVForRP of selectRP
+	rvLoc := types.RvLocation{
+		Region:    location.Region(RegionId),
+		Partition: location.ResourcePartition(selectedRP),
 	}
+	highestRVForRP := CurrentRVs[rvLoc]
 
 	// Make the modified changes for all nodes of selected RP
 	rvToGenerateRPs := highestRVForRP + 1
+	nodeChangeEvents := make([]*event.NodeEvent, 0)
 	for i := 0; i < NodesPerRP; i++ {
 
-		// reset the version of node with the current rvToGenerateRPs
-		node := eventsPerRP[i].Node
+		// Update the version of node with the current rvToGenerateRPs
+		node := RegionNodeList[selectedRP][i]
 		node.ResourceVersion = strconv.FormatUint(rvToGenerateRPs, 10)
 
 		// record the time to change resource version in resource partition
 		node.LastUpdatedTime = time.Now().UTC()
 
 		newEvent := event.NewNodeEvent(node, event.Modified)
-		RegionNodeEventsList[selectedRP][i] = newEvent
+		nodeChangeEvents = append(nodeChangeEvents, newEvent)
 
 		rvToGenerateRPs++
 	}
+
+	// Record the highest RV for selected RP
+	if NodesPerRP > 0 {
+		CurrentRVs[rvLoc] = rvToGenerateRPs - 1
+	}
+
+	// Update node change events for selected RP into Region Node Update Event List
+	RegionNodeUpdateEventList[selectedRP] = &nodeChangeEvents
 }
 
 // This function is used to create region node modified event by go routine
