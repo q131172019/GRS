@@ -36,11 +36,16 @@ type Goredis struct {
 	ctx    context.Context
 }
 
+const (
+	redisPort = "6379"
+)
+
 // Initialize Redis Client
-// TODO: with configured parameters for the store
-func NewRedisClient() *Goredis {
+func NewRedisClient(redisServerIP string, flushAllFlag bool) *Goredis {
+	redisAddress := fmt.Sprintf("%s:%s", redisServerIP, redisPort)
+
 	client := redis.NewClient(&redis.Options{
-		Addr:         "localhost:6379",
+		Addr:         redisAddress,
 		PoolSize:     1000,
 		PoolTimeout:  2 * time.Minute,
 		ReadTimeout:  2 * time.Minute,
@@ -51,9 +56,12 @@ func NewRedisClient() *Goredis {
 
 	ctx := context.Background()
 
-	if err := client.FlushAll(ctx).Err(); err != nil {
-		klog.Errorf("Flush all dbs in error : (%v)", err)
-		os.Exit(1)
+	// Batch Logical Nodes Inquiry Client should not flushall database
+	if flushAllFlag {
+		if err := client.FlushAll(ctx).Err(); err != nil {
+			klog.Errorf("Flush all dbs in error : (%v)", err)
+			os.Exit(1)
+		}
 	}
 
 	return &Goredis{
@@ -177,6 +185,68 @@ func (gr *Goredis) PersistVirtualNodesAssignments(virtualNodeAssignment *store.V
 	return true
 }
 
+// For batch Logical Nodes inquiry
+func (gr *Goredis) BatchLogicalNodesInquiry(batchSize int) []*types.LogicalNode {
+
+	// Retrive all keys of MiniNode based on batch size
+	pattern := types.PreserveNode_KeyPrefix + "." + "*"
+
+	logicalNodeKeys, currentCursor := gr.client.Scan(gr.ctx, 0, pattern, int64(batchSize)).Val()
+
+	countLogicalNodeKeys := len(logicalNodeKeys)
+	if countLogicalNodeKeys == 0 {
+		klog.Errorf("Error to scan (%v) keys from redis store : ", batchSize)
+		return nil
+	}
+
+	// Check whether the size of scanned logical node keys are less than batch size
+	// OR whether SCAN operation is a 'full iteration" when starting cursor is 0 and
+	// the returning cursor is 0
+	for countLogicalNodeKeys < batchSize {
+		klog.V(3).Infof("Scan (%v) keys but get (%v) keys : ", batchSize, countLogicalNodeKeys)
+
+		if currentCursor != 0 {
+			extraNeededSize := batchSize - countLogicalNodeKeys
+			klog.V(3).Infof("Need scan to get extra (%v) keys : ", extraNeededSize)
+			extraLogicalNodeKeys, newCursor := gr.client.Scan(gr.ctx, currentCursor, pattern, int64(extraNeededSize)).Val()
+			logicalNodeKeys = append(logicalNodeKeys, extraLogicalNodeKeys...)
+			countLogicalNodeKeys += len(extraLogicalNodeKeys)
+			currentCursor = newCursor
+			klog.V(3).Infof("Current cursor is (%v) : ", newCursor)
+		} else {
+			klog.V(3).Infof("Scanning (%v) keys is a full iteration in the end: ", countLogicalNodeKeys)
+			break
+		}
+	}
+
+	// 1. Retrive value of each logical node based on each logical node key from Redis store
+	// 2. Then unmarshal value to each logical node and store it into array LogicalNodes
+	logicalNodes := make([]*types.LogicalNode, len(logicalNodeKeys))
+
+	for i, logicalNodeKey := range logicalNodeKeys {
+		value, err := gr.client.Get(gr.ctx, logicalNodeKey).Bytes()
+
+		if err != nil {
+			klog.Errorf("Error to get LogicalNode from Redis Store. error %v", err)
+			return nil
+		}
+
+		var logicalNode *types.LogicalNode
+		if err != redis.Nil {
+			err = json.Unmarshal(value, &logicalNode)
+
+			if err != nil {
+				klog.Errorf("Error from JSON Unmarshal for LogicalNode. error %v", err)
+				return nil
+			}
+		}
+
+		logicalNodes[i] = logicalNode
+	}
+
+	return logicalNodes
+}
+
 // Get all Logical Nodes based on PreserveNode_KeyPrefix = "MinNode"
 //
 // Note: Need re-visit these codes to see whether using function pointer is much better
@@ -185,9 +255,6 @@ func (gr *Goredis) GetNodes() []*types.LogicalNode {
 	keys := gr.client.Keys(gr.ctx, types.PreserveNode_KeyPrefix+"*").Val()
 
 	logicalNodes := make([]*types.LogicalNode, len(keys))
-
-	var logicalNode *types.LogicalNode
-
 	for i, logicalNodeKey := range keys {
 		value, err := gr.client.Get(gr.ctx, logicalNodeKey).Bytes()
 
@@ -196,6 +263,7 @@ func (gr *Goredis) GetNodes() []*types.LogicalNode {
 			return nil
 		}
 
+		var logicalNode *types.LogicalNode
 		if err != redis.Nil {
 			err = json.Unmarshal(value, &logicalNode)
 

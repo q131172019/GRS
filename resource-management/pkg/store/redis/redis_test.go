@@ -18,21 +18,26 @@ package redis
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"global-resource-service/resource-management/pkg/common-lib/interfaces/store"
 	"global-resource-service/resource-management/pkg/common-lib/types"
 	"global-resource-service/resource-management/pkg/common-lib/types/location"
 )
 
-var GR *Goredis
+var GR, GRInquiry *Goredis
 
 func init() {
-	GR = NewRedisClient()
+	GR = NewRedisClient("localhost", true)
+	GRInquiry = NewRedisClient("localhost", false)
 }
 
 func TestNewRedisClient(t *testing.T) {
-	GR = NewRedisClient()
+	GR = NewRedisClient("localhost", true)
+	GRInquiry = NewRedisClient("localhost", false)
 }
 
 // Simply Test Set String and Get String without the need of Marshal and Unmarshal
@@ -198,4 +203,160 @@ func TestPersistVirtualNodesAssignments(t *testing.T) {
 		t.Error("virtualNodeAssignment.VirtualNodes[0].Location.GetResourcePartition() is : ", virtualNodeAssignment.VirtualNodes[0].Location.GetResourcePartition())
 		t.Error("testCases0.VirtualNodes[0].Location.GetResourcePartition()      is : ", testCase0.VirtualNodes[0].Location.GetResourcePartition())
 	}
+}
+
+// Simply Test to get batch node ids for node status inquiry
+//
+func TestBatchLogicalNodeInquiry(t *testing.T) {
+	// Clean redis store to avoid test mess up due to previous tests
+	GR = NewRedisClient("localhost", true)
+
+	// Start first test
+	t.Log("\nFirst test is starting")
+	testCases := make([]*types.LogicalNode, 2)
+
+	var testCase0 = &types.LogicalNode{
+		Id:              "0002",
+		ResourceVersion: "0003",
+		GeoInfo: types.NodeGeoInfo{
+			Region:            1001,
+			ResourcePartition: 1001,
+		},
+		Conditions:  255,
+		Reserved:    true,
+		MachineType: "machineType2",
+	}
+
+	testCases[0] = testCase0
+
+	var testCase1 = &types.LogicalNode{
+		Id:              "0003",
+		ResourceVersion: "0004",
+		GeoInfo: types.NodeGeoInfo{
+			Region:            1002,
+			ResourcePartition: 1002,
+		},
+		Conditions:  255,
+		Reserved:    true,
+		MachineType: "machineType3",
+	}
+
+	testCases[1] = testCase1
+
+	success := GR.PersistNodes(testCases)
+
+	if success == false {
+		t.Error("Store 2 new Logical Nodes of testCases into Redis in failure")
+	}
+
+	// Set batchLength = 2
+	var batchLength int = 2
+	logicalNodes := GRInquiry.BatchLogicalNodesInquiry(batchLength)
+	actualLength := len(logicalNodes)
+
+	assert.NotEqual(t, 0, actualLength)
+	assert.Equal(t, batchLength, actualLength)
+	t.Logf("Scan (%v) logical nodes and actually get (%v) logical nodes", batchLength, actualLength)
+
+	for i := 0; i < actualLength; i++ {
+		t.Logf("Index #(%v): ", i)
+		t.Log("=================")
+		t.Logf("Id:        (%v)", logicalNodes[i].Id)
+		t.Logf("Region:    (%v)", logicalNodes[i].GeoInfo.Region)
+		t.Logf("RP:        (%v)", logicalNodes[i].GeoInfo.ResourcePartition)
+	}
+	t.Log("\nFirst test is OK\n")
+
+	// Start second test
+	t.Log("\nSecond test is starting")
+	testNumber := 10000
+	testCases10 := make([]*types.LogicalNode, testNumber)
+
+	startID := 1000001
+	startRV := 10001
+	var startRegion types.RegionName = 10001
+	var startRP types.ResourcePartitionName = 10001
+
+	for i := 0; i < testNumber; i++ {
+		testcase := &types.LogicalNode{
+			Id:              strconv.Itoa(startID),
+			ResourceVersion: strconv.Itoa(startRV),
+			GeoInfo: types.NodeGeoInfo{
+				Region:            startRegion,
+				ResourcePartition: startRP,
+			},
+			Conditions:  255,
+			Reserved:    true,
+			MachineType: "machineType" + "strconv.Itoa(i)",
+		}
+
+		testCases10[i] = testcase
+		startID++
+		startRV++
+		startRegion++
+		startRP++
+	}
+
+	success = GR.PersistNodes(testCases10)
+	if success == false {
+		t.Errorf("Store (%v) new Logical Nodes of testCases into Redis in failure", testNumber)
+	}
+
+	// Set different batchLength = 10
+	batchLength = 10
+	logicalNodes = GRInquiry.BatchLogicalNodesInquiry(batchLength)
+	actualLength = len(logicalNodes)
+
+	assert.NotEqual(t, 0, actualLength)
+
+	// https://redis.io/commands/scan/
+	// The COUNT option
+	// the server will usually return count or a bit more than count elements per call.
+	assert.LessOrEqual(t, batchLength, actualLength)
+	t.Logf("Scan (%v) logical nodes and actually get (%v) logical nodes", batchLength, actualLength)
+	t.Log("\nSecond test is OK\n")
+
+	// Start third test
+	t.Log("\nThird test is starting")
+	// Set different batchLength = 1000
+	batchLength = 1000
+	logicalNodes = GRInquiry.BatchLogicalNodesInquiry(batchLength)
+	actualLength = len(logicalNodes)
+
+	assert.NotEqual(t, 0, actualLength)
+
+	// https://redis.io/commands/scan/
+	// The COUNT option
+	// the server will usually return count or a bit more than count elements per call.
+	assert.LessOrEqual(t, batchLength, actualLength)
+	t.Logf("Scan (%v) logical nodes and actually get (%v) logical nodes", batchLength, actualLength)
+	t.Log("\nThird test is OK\n")
+
+	// Start fourth test
+	t.Log("\nFourth test is starting")
+	// Set different batchLength = 2000
+	batchLength = 2000
+	logicalNodes = GRInquiry.BatchLogicalNodesInquiry(batchLength)
+	actualLength = len(logicalNodes)
+
+	assert.NotEqual(t, 0, actualLength)
+
+	// https://redis.io/commands/scan/
+	// The COUNT option
+	// the server will usually return count or a bit more than count elements per call.
+	assert.LessOrEqual(t, batchLength, actualLength)
+	t.Logf("Scan (%v) logical nodes and actually get (%v) logical nodes", batchLength, actualLength)
+	t.Log("\nFouth test is OK\n")
+
+	// Start fifth test
+	t.Log("\nThe fifth test is starting")
+	// Set different batchLength = 20000
+	batchLength = 20000
+	logicalNodes = GRInquiry.BatchLogicalNodesInquiry(batchLength)
+	actualLength = len(logicalNodes)
+
+	assert.NotEqual(t, 0, actualLength)
+	assert.NotEqual(t, batchLength, actualLength)
+	t.Logf("Scan (%v) logical nodes and actually get (%v) logical nodes", batchLength, actualLength)
+	t.Log("\nFifth test is OK\n")
 }

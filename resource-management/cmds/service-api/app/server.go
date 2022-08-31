@@ -45,7 +45,7 @@ type Config struct {
 func Run(c *Config) error {
 	klog.V(3).Infof("Starting the API server...")
 
-	store := redis.NewRedisClient()
+	store := redis.NewRedisClient(c.MasterIp, true)
 	dist := distributor.GetResourceDistributor()
 	dist.SetPersistHelper(store)
 	installer := endpoints.NewInstaller(dist)
