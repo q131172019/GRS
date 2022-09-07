@@ -63,7 +63,6 @@ type PullDataFromRRM struct {
 const (
 	DefaultBatchLength = 20000
 	httpPrefix         = "http://"
-	defaultPullInterval = 10 * time.Millisecond // 10ms as default pull interval
 )
 
 // Initialize aggregator
@@ -109,8 +108,11 @@ func (a *Aggregator) Run() (err error) {
 				// otherwise the method subsequentPull is called.
 				// To simplify the codes, we use one method initPullOrSubsequentPull instead
 				startPullAndProcess := time.Now()
+				startPull := time.Now()
 				regionNodeEvents, length = a.initPullOrSubsequentPull(c, DefaultBatchLength, crv)
 				if length != 0 {
+					endPull := time.Now()
+					klog.V(9).Infof("Pull (%v) events in duration: (%v)", length, endPull.Sub(startPull))
 					klog.V(4).Infof("Total (%v) region node events are pulled successfully in (%v) RPs", length, len(regionNodeEvents))
 
 					// Convert 2D array to 1D array
@@ -140,9 +142,7 @@ func (a *Aggregator) Run() (err error) {
 				endPullAndProcess := time.Now()
 
 				completeDuration := endPullAndProcess.Sub(startPullAndProcess)
-				if defaultPullInterval > completeDuration {
-					time.Sleep(defaultPullInterval - completeDuration)
-				}
+				klog.V(9).Infof("Pull and process (%v) events in duration: (%v)", length, completeDuration)
 			}
 		}(i)
 	}
@@ -175,7 +175,15 @@ func (a *Aggregator) initPullOrSubsequentPull(c *ClientOfRRM, batchLength uint64
 		path = httpPrefix + c.BaseURL + "/resources/subsequentpull"
 	}
 
+	startPullFunction := time.Now()
+	klog.V(9).Infof("(%v) -- Start Pull Function in duration: (%v)", path, startPullFunction)
+
+	startMarshal := time.Now()
 	bytes, _ := json.Marshal(PullDataFromRRM{BatchLength: batchLength, CRV: crv.Copy()})
+	endMarshal := time.Now()
+	klog.V(9).Infof("(%v) -- Marshal Operation in duration: (%v)", path, endMarshal.Sub(startMarshal))
+
+	startHTTPGet := time.Now()
 	req, err := http.NewRequest(http.MethodGet, path, strings.NewReader((string(bytes))))
 	if err != nil {
 		klog.Errorf(err.Error())
@@ -188,22 +196,31 @@ func (a *Aggregator) initPullOrSubsequentPull(c *ClientOfRRM, batchLength uint64
 		klog.Errorf(err.Error())
 		return nil, 0
 	}
+	endHTTPGet := time.Now()
+	klog.V(9).Infof("(%v) -- HTTP Request/GET Operation in duration: (%v)", path, endHTTPGet.Sub(startHTTPGet))
 	defer resp.Body.Close()
 
+	startReadAll := time.Now()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		klog.Errorf(err.Error())
 		return nil, 0
 	}
+	endReadAll := time.Now()
+	klog.V(9).Infof("(%v) -- ioutil.ReadAll in duration: (%v)", path, endReadAll.Sub(startReadAll))
 
+	startUnmarshal := time.Now()
 	var ResponseObject ResponseFromRRM
 	err = json.Unmarshal(bodyBytes, &ResponseObject)
 	if err != nil {
 		klog.Errorf("Error from JSON Unmarshal:", err)
 		return nil, 0
 	}
+	endUnmarshal := time.Now()
+	klog.V(9).Infof("(%v) -- Unmarshal Operation in duration: (%v)", path, endUnmarshal.Sub(startUnmarshal))
 
 	// log out node ids for debugging some prolonged node transitions
+	startOthers := time.Now()
 	if klog.V(9).Enabled() {
 		for rp, rpNodes := range ResponseObject.RegionNodeEvents {
 			if len(rpNodes) == 0 {
@@ -227,6 +244,11 @@ func (a *Aggregator) initPullOrSubsequentPull(c *ClientOfRRM, batchLength uint64
 			}
 		}
 	}
+	endOthers := time.Now()
+	klog.V(9).Infof("(%v) -- Remaining Operations in duration: (%v)", path, endOthers.Sub(startOthers))
+
+	endPullFunction := time.Now()
+	klog.V(9).Infof("(%v) -- Pull Function (%v) completion in duration: (%v)", path, ResponseObject.Length, endPullFunction.Sub(startPullFunction))
 
 	return ResponseObject.RegionNodeEvents, ResponseObject.Length
 }
