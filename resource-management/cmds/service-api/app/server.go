@@ -38,14 +38,16 @@ type Config struct {
 	ResourceUrls              []string
 	MasterIp                  string
 	MasterPort                string
+	RedisPort		  string
 	EventMetricsDumpFrequency time.Duration
 }
 
 // Run and create new service-api.  This should never exit.
 func Run(c *Config) error {
 	klog.V(3).Infof("Starting the API server...")
+	klog.V(3).Infof("Connecting the Redis server via port (%v)...", c.RedisPort)
 
-	store := redis.NewRedisClient(c.MasterIp, true)
+	store := redis.NewRedisClient(c.MasterIp, c.RedisPort, false)
 	dist := distributor.GetResourceDistributor()
 	dist.SetPersistHelper(store)
 	installer := endpoints.NewInstaller(dist)

@@ -17,6 +17,7 @@ limitations under the License.
 package redis
 
 import (
+	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -29,15 +30,27 @@ import (
 )
 
 var GR, GRInquiry *Goredis
+var redisPort string
+
+func setRedisPort() string {
+	if os.Getenv("REDIS_NEW_PORT") == "" {
+		redisPort = "7379"
+	} else {
+		redisPort = os.Getenv("REDIS_NEW_PORT")
+	}
+
+	return redisPort
+}
 
 func init() {
-	GR = NewRedisClient("localhost", true)
-	GRInquiry = NewRedisClient("localhost", false)
+	redisPort = setRedisPort()
+	GR = NewRedisClient("localhost", redisPort, true)
+	GRInquiry = NewRedisClient("localhost", redisPort, false)
 }
 
 func TestNewRedisClient(t *testing.T) {
-	GR = NewRedisClient("localhost", true)
-	GRInquiry = NewRedisClient("localhost", false)
+	GR = NewRedisClient("localhost", redisPort, true)
+	GRInquiry = NewRedisClient("localhost", redisPort, false)
 }
 
 // Simply Test Set String and Get String without the need of Marshal and Unmarshal
@@ -209,7 +222,7 @@ func TestPersistVirtualNodesAssignments(t *testing.T) {
 //
 func TestBatchLogicalNodeInquiry(t *testing.T) {
 	// Clean redis store to avoid test mess up due to previous tests
-	GR = NewRedisClient("localhost", true)
+	GR = NewRedisClient("localhost", redisPort, true)
 
 	// Start first test
 	t.Log("\nFirst test is starting")

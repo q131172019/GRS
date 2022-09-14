@@ -36,12 +36,8 @@ type Goredis struct {
 	ctx    context.Context
 }
 
-const (
-	redisPort = "6379"
-)
-
 // Initialize Redis Client
-func NewRedisClient(redisServerIP string, flushAllFlag bool) *Goredis {
+func NewRedisClient(redisServerIP string, redisPort string, flushAllFlag bool) *Goredis {
 	redisAddress := fmt.Sprintf("%s:%s", redisServerIP, redisPort)
 
 	client := redis.NewClient(&redis.Options{
