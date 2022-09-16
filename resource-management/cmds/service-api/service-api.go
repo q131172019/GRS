@@ -40,6 +40,7 @@ func main() {
 	flag.StringVar(&c.MasterIp, "master_ip", "localhost", "Service IP address, if not set, default to localhost")
 	flag.StringVar(&c.MasterPort, "master_port", "8080", "Service port, if not set, default to 8080")
 	flag.StringVar(&urls, "resource_urls", "", "Resource urls of the resource manager services in each region")
+	flag.StringVar(&c.RedisPort, "redis_port", "7379", "Redis port, if not set, default to 7379")
 	flag.DurationVar(&c.EventMetricsDumpFrequency, "metrics_dump_frequency", 5*time.Minute, "Frequency to dump the event metrics, default 5m")
 	flag.BoolVar(&metricsEnabled, "enable_metrics", true, "Flag for if node event trace is enabled. default is enabled")
 
@@ -92,7 +93,7 @@ func printUsage() {
 	// klog will use commandline log parameters with nil as named a few below:
 	// --alsologtostderr=true  --logtostderr=false --log_file="/tmp/grs.log"
 	fmt.Println("logging options: --alsologtostderr=true  --logtostderr=false --log_file=/tmp/grs.log")
-	fmt.Println("service config options: --master_ip=<master address>  --master_port=<port> --resource_urls=<url1,url2,...>")
+	fmt.Println("service config options: --master_ip=<master address>  --master_port=<port> --redis_port=<port> --resource_urls=<url1,url2,...>")
 	fmt.Println("Explanation: <master address> could be public ip address or public dns name of the server")
 	fmt.Println("Gate flags: --enable_metrics=true  to enable the detailed event trace checkpoints")
 	os.Exit(0)
