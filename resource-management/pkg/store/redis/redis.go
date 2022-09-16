@@ -37,7 +37,7 @@ type Goredis struct {
 }
 
 const (
-	redisPort = "6379"
+	redisPort = "7379"
 )
 
 // Initialize Redis Client

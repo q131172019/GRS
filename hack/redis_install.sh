@@ -37,6 +37,11 @@
 #
 export PATH=$PATH
 
+REDIS_DEFAULT_PORT=${REDIS_DEFAULT_PORT:-6379}
+REDIS_NEW_PORT=${REDIS_NEW_PORT:-7379}
+REDIS_CONF_UBUNTU=${REDIS_CONF_UBUNTU:-"/etc/redis/redis.conf"}
+
+
 if [ `uname -s` == "Linux" ]; then
   LINUX_OS=`uname -v |awk -F'-' '{print $2}' |awk '{print $1}'`
 
@@ -79,29 +84,31 @@ if [ `uname -s` == "Linux" ]; then
     echo ""
     echo "2. Enable and Run Redis ......"
     echo "==============================="
-    REDIS_CONF_Ubuntu=/etc/redis/redis.conf
-    sudo ls -alg $REDIS_CONF_Ubuntu
+    sudo ls -alg $REDIS_CONF_UBUNTU
 
-    sudo sed -i -e "s/^supervised auto$/supervised systemd/g" $REDIS_CONF_Ubuntu
-    sudo egrep -v "(^#|^$)" $REDIS_CONF_Ubuntu |grep "supervised "
+    sudo sed -i -e "s/^supervised auto$/supervised systemd/g" $REDIS_CONF_UBUNTU
+    sudo egrep -v "(^#|^$)" $REDIS_CONF_UBUNTU |grep "supervised "
 
-    sudo sed -i -e "s/^appendonly no$/appendonly yes/g" $REDIS_CONF_Ubuntu
-    sudo egrep -v "(^#|^$)" $REDIS_CONF_Ubuntu |egrep "(appendonly |appendfsync )"
-
+    sudo sed -i -e "s/^appendonly no$/appendonly yes/g" $REDIS_CONF_UBUNTU
+    sudo egrep -v "(^#|^$)" $REDIS_CONF_UBUNTU |egrep "(appendonly |appendfsync )"
+    
     # === Enable Redis server remote support
-    sudo sed -i -e "s/^bind 127.0.0.1 -::1$/bind 0.0.0.0/g" $REDIS_CONF_Ubuntu
-    sudo egrep -v "(^#|^$)" $REDIS_CONF_Ubuntu |egrep "(bind 0.0.0.0)"
+    sudo sed -i -e "s/^bind 127.0.0.1 -::1$/bind 0.0.0.0/g" $REDIS_CONF_UBUNTU
+    sudo egrep -v "(^#|^$)" $REDIS_CONF_UBUNTU |egrep "(bind 0.0.0.0)"
 
-    sudo sed -i -e "s/^protected-mode yes$/protected-mode no/g" $REDIS_CONF_Ubuntu
-    sudo egrep -v "(^#|^$)" $REDIS_CONF_Ubuntu |egrep "(protected-mode no)"
+    sudo sed -i -e "s/^protected-mode yes$/protected-mode no/g" $REDIS_CONF_UBUNTU
+    sudo egrep -v "(^#|^$)" $REDIS_CONF_UBUNTU |egrep "(protected-mode no)"
+
+    sudo sed -i -e "s/^port $REDIS_DEFAULT_PORT$/port $REDIS_NEW_PORT/g" $REDIS_CONF_UBUNTU
+    sudo egrep -v "(^#|^$)" $REDIS_CONF_UBUNTU |egrep "(port $REDIS_NEW_PORT)"
     # === Enable Redis server remote support
 
     #
-    # Note: do not forget to open redis port 6379 in AWS Ubuntu OS level or GCE level
+    # Note: do not forget to open redis port 7379 in AWS Ubuntu OS level or GCE level
     #
-    # For example: Open port 6379 with ufw on AWS 
+    # For example: Open port 7379 with ufw on AWS 
     # $ sudo ufw status
-    # $ sudo ufw allow 6379/tcp
+    # $ sudo ufw allow 7379/tcp
     # $ sudo ufw status
     #
     # if ufw status is inactive, please enable ufw
@@ -115,8 +122,8 @@ if [ `uname -s` == "Linux" ]; then
     sudo systemctl restart redis-server.service
     sudo systemctl status redis-server.service
 
-    # Check whether network port 6379 is listened
-    sudo netstat -nlpt | grep 6379
+    # Check whether network port 7379 is listened
+    sudo netstat -nlpt | grep $REDIS_NEW_PORT
   else
     echo ""
     echo "This Linux OS ($LinuxOS) is currently not supported and exit"
@@ -185,19 +192,20 @@ echo ""
 echo "3. Simply Test Redis ......"
 echo "==============================="
 which redis-cli
+
 echo "3.1) Test ping ......"
-redis-cli ping 
+redis-cli -p $REDIS_NEW_PORT ping 
 
 echo ""
 echo "3.2) Test write key and value ......"
-redis-cli << EOF
+redis-cli -p $REDIS_NEW_PORT << EOF
 SET server:name "fido"
 GET server:name
 EOF
 
 echo ""
 echo "3.3) Test write queue ......"
-redis-cli << EOF
+redis-cli -p $REDIS_NEW_PORT << EOF
 lpush demos redis-macOS-demo
 rpop demos
 EOF
