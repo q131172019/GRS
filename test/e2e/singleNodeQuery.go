@@ -39,6 +39,7 @@ type testConfig struct {
 	singleNodeNum      int
 	singleNodeInterval time.Duration
 	batchNodeNum       int
+	remoteRedisPort    string
 	batchNodeInterval  time.Duration
 }
 
@@ -54,6 +55,7 @@ func main() {
 	flag.IntVar(&testCfg.singleNodeNum, "single_node_num", 1, "Number of single node set requested from redis, default to 1")
 	flag.DurationVar(&testCfg.singleNodeInterval, "single_node_interval", 1*time.Second, "Query interval of single node, default to 1s")
 	flag.IntVar(&testCfg.batchNodeNum, "batch_node_num", 10, "Number of batch node, default to 0s")
+	flag.StringVar(&testCfg.remoteRedisPort, "remote_redis_port", "7379", "Remote redis port, if not set, default to 7379")
 	flag.DurationVar(&testCfg.batchNodeInterval, "batch_node_interval", 1*time.Minute, "Query interval of batch node, default to 1m")
 
 	if !flag.Parsed() {
@@ -88,14 +90,16 @@ func main() {
 	}
 
 	// get multi nodes from redis for single node model and batch node model
-	redisIp := serviceInfo[0]
-	store := redis.NewRedisClient(redisIp, false)
+	remoteRedisIp := serviceInfo[0]
+	remoteRedisPort := testCfg.remoteRedisPort
+	klog.V(3).Infof("Connecting the Redis server at %v:%v", remoteRedisIp, remoteRedisPort)
+	store := redis.NewRedisClient(remoteRedisIp, remoteRedisPort, false)
 	requiredNum := testCfg.batchNodeNum + testCfg.singleNodeNum
 	startTime := time.Now().UTC()
 	klog.Infof("Requesting nodes from redis server")
 	logicalNodes := store.BatchLogicalNodesInquiry(requiredNum)
 	endTime := time.Since(startTime)
-	klog.Infof("Total %v nodes required from redis server: %v, Total nodes got from redis: %v in duration: %v, detailes: %v\n", requiredNum, redisIp, len(logicalNodes), endTime, logicalNodes)
+	klog.Infof("Total %v nodes required from redis server: %v, Total nodes got from redis: %v in duration: %v, detailes: %v\n", requiredNum, remoteRedisIp, len(logicalNodes), endTime, logicalNodes)
 
 	//split nodes from redis to singleNodeSet and batchNodeSet
 	singleNodeSet := make([]*types.LogicalNode, testCfg.singleNodeNum)
@@ -159,7 +163,7 @@ func main() {
 // function to print the usage info for the node query testing
 func printUsage() {
 	fmt.Println("Usage: ")
-	fmt.Println("--service_ip=127.0.0.1 --service_port=8080 --batch_node_num=100")
+	fmt.Println("--service_ip=127.0.0.1 --service_port=8080 --batch_node_num=100 --remote_redis_port=<port>")
 
 	os.Exit(0)
 }
