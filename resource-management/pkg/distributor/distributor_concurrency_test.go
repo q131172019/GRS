@@ -466,6 +466,22 @@ Processing 2000 AddNode events took 1.563561ms.
 Processing 20000 AddNode events took 11.765084ms.
 Processing 200000 AddNode events took 165.029239ms.
 Processing 2000000 AddNode events took 1.752964732s.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints enabled
+Processing 20 AddNode events took 273.684µs.
+Processing 200 AddNode events took 508.966µs.
+Processing 2000 AddNode events took 4.405378ms.
+Processing 20000 AddNode events took 48.118097ms.
+Processing 200000 AddNode events took 461.86578ms.
+Processing 2000000 AddNode events took 4.86233929s.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints disabled
+Processing 20 AddNode events took 234.834µs.
+Processing 200 AddNode events took 316.923µs.
+Processing 2000 AddNode events took 1.83691ms.
+Processing 20000 AddNode events took 17.937767ms.
+Processing 200000 AddNode events took 215.819078ms.
+Processing 2000000 AddNode events took 2.165953214s.
 */
 func TestProcessEvents_TwoRPs_AddNodes_Sequential(t *testing.T) {
 	distributor := setUp()
@@ -565,6 +581,22 @@ Processing 2000 AddNode events took 1.12844ms.
 Processing 20000 AddNode events took 7.427902ms.
 Processing 200000 AddNode events took 115.241136ms.
 Processing 2000000 AddNode events took 1.175839189s.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints enabled
+Processing 20 AddNode events took 250.904µs.
+Processing 200 AddNode events took 1.46763ms.
+Processing 2000 AddNode events took 2.528231ms.
+Processing 20000 AddNode events took 23.925124ms.
+Processing 200000 AddNode events took 265.018771ms.
+Processing 2000000 AddNode events took 3.02275436s.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints disabled
+Processing 20 AddNode events took 263.876µs.
+Processing 200 AddNode events took 276.009µs.
+Processing 2000 AddNode events took 1.294924ms.
+Processing 20000 AddNode events took 12.04409ms.
+Processing 200000 AddNode events took 125.329976ms.
+Processing 2000000 AddNode events took 1.391614298s.
 */
 func TestProcessEvents_TwoRPs_Concurrent(t *testing.T) {
 	distributor := setUp()

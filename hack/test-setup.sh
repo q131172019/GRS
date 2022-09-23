@@ -38,7 +38,7 @@ function create-image {
         local image_name="$1"
         local source_disk="$2"
         local source_disk_zone="$3"
-        echo "Check and create template images with image_name: ${image_name}, source_disk: ${source_disk}."
+        echo "Check and create template images  with image_name: ${image_name}, source_disk: ${source_disk}."
         if gcloud compute images describe "${image_name}" --project "${PROJECT}" &>/dev/null; then
                 echo "Image name: ${image_name} already exist, using existing one."
         else
@@ -222,17 +222,31 @@ function get-mig-names {
 
 IFS=','; INSTANCE_SERVER_ZONE=($SERVER_ZONE); unset IFS;
 
-if [ ${#INSTANCE_SERVER_ZONE[@]} != ${SERVER_NUM} ]; then
-        echo "Server zone must be same as server number, Please double check."
-        exit 1
+if [ ${#INSTANCE_SERVER_ZONE[@]} != 1 ]; then
+        if [ ${#INSTANCE_SERVER_ZONE[@]} -lt ${SERVER_NUM} ]; then
+                echo "Server zone must be 1 or same as server number, Please double check."
+                exit 1
+        fi
+else
+        if [ "${INSTANCE_SERVER_ZONE[0]}" != "${SERVER_SOURCE_DISK_ZONE}" ]; then
+                echo "If SERVER_ZONE only have one item, which need be same as SERVER_SOURCE_DISK_ZONE: ${SERVER_SOURCE_DISK_ZONE}, Please double check."
+                exit 1
+        fi
 fi
 
 IFS=','; INSTANCE_SIM_ZONE=($SIM_ZONE); unset IFS;
 IFS=','; SIM_DOWN_TIME_LIST=($SIM_WAIT_DOWN_TIME); unset IFS;
 
-if [ ${#INSTANCE_SIM_ZONE[@]} != ${SIM_NUM} ]; then
-        echo "Simulator zone must be same as Simulator number, Please double check."
-        exit 1
+if [ ${#INSTANCE_SIM_ZONE[@]} != 1 ]; then
+        if [ ${#INSTANCE_SIM_ZONE[@]} -lt ${SIM_NUM} ]; then
+                echo "Simulator zone must be 1 or same as Simulator number, Please double check."
+                exit 1
+        fi
+else
+        if [ "${INSTANCE_SIM_ZONE[0]}" != "${SIM_SOURCE_DISK_ZONE}" ]; then
+                echo "If SIM_ZONE only have one item, which need be same as SIM_SOURCE_DISK_ZONE: ${SIM_SOURCE_DISK_ZONE}, Please double check."
+                exit 1
+        fi
 fi
 
 if [[ "${SIM_DATA_PATTERN}" == "Outage" && "${#SIM_DOWN_TIME_LIST[@]}" != "${SIM_NUM}" ]]; then
@@ -242,9 +256,16 @@ fi
 
 IFS=','; INSTANCE_CLIENT_ZONE=($CLIENT_ZONE); unset IFS;
 
-if [ ${#INSTANCE_CLIENT_ZONE[@]} != ${CLIENT_NUM} ]; then
-        echo "Client zone must be same as client number, Please double check."
-        exit 1
+if [ ${#INSTANCE_CLIENT_ZONE[@]} != 1 ]; then
+        if [ ${#INSTANCE_CLIENT_ZONE[@]} -lt ${CLIENT_NUM} ]; then
+                echo "Client zone must be 1 or same as client number, Please double check."
+                exit 1
+        fi
+else
+        if [ "${INSTANCE_CLIENT_ZONE[0]}" != "${CLIENT_SOURCE_DISK_ZONE}" ]; then
+                echo "If CLIENT_ZONE only have one item, which need be same as CLIENT_SOURCE_DISK_ZONE: ${CLIENT_SOURCE_DISK_ZONE}, Please double check."
+                exit 1
+        fi
 fi
 
 if [ "${ENABLE_ADMIN_E2E}" == "true" ]; then
@@ -262,38 +283,57 @@ fi
 
 if [ ${SIM_NUM} -gt 0 ]; then
         echo "starting region simulator... "
-        create-machine-image "${SIM_IMAGE_NAME}" "${SIM_SOURCE_INSTANCE}" "${SIM_SOURCE_DISK_ZONE}"
-        index=0
-        for zone in "${INSTANCE_SIM_ZONE[@]}"; do
-                create-vm-instance "${SIM_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${SIM_IMAGE_NAME}" &
-                index=$(($index + 1)) 
-        done
+        if [ ${#INSTANCE_SIM_ZONE[@]} == 1 ]; then
+                create-image "${SIM_IMAGE_NAME}" "${SIM_SOURCE_DISK}" "${SIM_SOURCE_DISK_ZONE}"
+                create-template "${SIM_INSTANCE_PREFIX}-template" "${SIM_SOURCE_INSTANCE}" "${SIM_SOURCE_DISK}" "${SIM_IMAGE_NAME}" "${SIM_SOURCE_DISK_ZONE}"
+                create-instance-group "${SIM_INSTANCE_PREFIX}-${INSTANCE_SIM_ZONE[0]}-mig" "${SIM_INSTANCE_PREFIX}-template" "${SIM_NUM}" "${INSTANCE_SIM_ZONE[0]}" &
+        else
+                create-machine-image "${SIM_IMAGE_NAME}" "${SIM_SOURCE_INSTANCE}" "${SIM_SOURCE_DISK_ZONE}"
+                index=0
+                for zone in "${INSTANCE_SIM_ZONE[@]}"; do
+                        create-vm-instance "${SIM_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${SIM_IMAGE_NAME}" &
+                        index=$(($index + 1)) 
+                done
 
+        fi
         echo "waiting 10 seconds to get all simulator resources created"
         sleep 10
 fi
 
 if [ ${CLIENT_NUM} -gt 0 ]; then
         echo "starting client scheduler... "
-        create-machine-image "${CLIENT_IMAGE_NAME}" "${CLIENT_SOURCE_INSTANCE}" "${CLIENT_SOURCE_DISK_ZONE}"
-        index=0
-        for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
-                create-vm-instance "${CLIENT_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${CLIENT_IMAGE_NAME}" &
-                index=$(($index + 1)) 
-        done
+        if [ ${#INSTANCE_CLIENT_ZONE[@]} == 1 ]; then
+                create-image "${CLIENT_IMAGE_NAME}" "${CLIENT_SOURCE_DISK}" "${CLIENT_SOURCE_DISK_ZONE}"
+                create-template "${CLIENT_INSTANCE_PREFIX}-template" "${CLIENT_SOURCE_INSTANCE}" "${CLIENT_SOURCE_DISK}" "${CLIENT_IMAGE_NAME}" "${CLIENT_SOURCE_DISK_ZONE}"
+                create-instance-group "${CLIENT_INSTANCE_PREFIX}-${INSTANCE_CLIENT_ZONE[0]}-mig" "${CLIENT_INSTANCE_PREFIX}-template" "${CLIENT_NUM}" "${INSTANCE_CLIENT_ZONE[0]}" &
+        else
+                create-machine-image "${CLIENT_IMAGE_NAME}" "${CLIENT_SOURCE_INSTANCE}" "${CLIENT_SOURCE_DISK_ZONE}"
+                index=0
+                for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
+                        create-vm-instance "${CLIENT_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${CLIENT_IMAGE_NAME}" &
+                        index=$(($index + 1)) 
+                done
 
+        fi
         echo "waiting 10 seconds to get all client scheduler resources created"
         sleep 10
 fi
 
 if [ ${SERVER_NUM} -gt 0 ]; then
         echo "starting resource management service... "
-        create-machine-image "${SERVER_IMAGE_NAME}" "${SERVER_SOURCE_INSTANCE}" "${SERVER_SOURCE_DISK_ZONE}"
-        index=0
-        for zone in "${INSTANCE_SERVER_ZONE[@]}"; do
-                create-vm-instance "${SERVER_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${SERVER_IMAGE_NAME}" &
-                index=$(($index + 1)) 
-        done
+        if [ ${#INSTANCE_SERVER_ZONE[@]} == 1 ]; then
+                create-image "${SERVER_IMAGE_NAME}" "${SERVER_SOURCE_DISK}" "${SERVER_SOURCE_DISK_ZONE}"
+                create-template "${SERVER_INSTANCE_PREFIX}-template" "${SERVER_SOURCE_INSTANCE}" "${SERVER_SOURCE_DISK}" "${SERVER_IMAGE_NAME}" "${SERVER_SOURCE_DISK_ZONE}"                
+                create-instance-group "${SERVER_INSTANCE_PREFIX}-${INSTANCE_SERVER_ZONE[0]}-mig" "${SERVER_INSTANCE_PREFIX}-template" "${SERVER_NUM}" "${INSTANCE_SERVER_ZONE[0]}" &
+        else
+                create-machine-image "${SERVER_IMAGE_NAME}" "${SERVER_SOURCE_INSTANCE}" "${SERVER_SOURCE_DISK_ZONE}"
+                index=0
+                for zone in "${INSTANCE_SERVER_ZONE[@]}"; do
+                        create-vm-instance "${SERVER_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${SERVER_IMAGE_NAME}" &
+                        index=$(($index + 1)) 
+                done
+
+        fi
         echo "waiting 10 seconds to get all server resources created"
         sleep 10
 fi
@@ -312,8 +352,8 @@ if [ "${ENABLE_ADMIN_E2E}" == "true" ]; then
 fi
 
  
-echo "Waiting 90 seconds to get all resource started"
-sleep 90
+echo "Waiting 60 seconds to get all resource started"
+sleep 60
 
 RESOURCE_URLS=""
 MASTER_IP=""
@@ -322,23 +362,33 @@ SERVER_ZONE=""
 if [ ${SIM_NUM} -gt 0 ]; then
         SIM_IPS=""
         RESOURCE_URLS=""
-        index=0
-        for zone in "${INSTANCE_SIM_ZONE[@]}"; do
-                SIM_IPS+="$(get-instance-ip ${SIM_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
-                RESOURCE_URLS+="$(get-instance-ip ${SIM_INSTANCE_PREFIX}-${zone}-${index} ${zone}):${SIM_PORT},"
-                index=$((index + 1)) 
-        done
+        if [ ${#INSTANCE_SIM_ZONE[@]} == 1 ]; then
+                SIM_IPS="$(get-mig-ips ${SIM_INSTANCE_PREFIX}-${INSTANCE_SIM_ZONE[0]}-mig ${INSTANCE_SIM_ZONE[0]})"
+                RESOURCE_URLS="$(get-mig-urls ${SIM_INSTANCE_PREFIX}-${INSTANCE_SIM_ZONE[0]}-mig ${INSTANCE_SIM_ZONE[0]})"
+        else
+                index=0
+                for zone in "${INSTANCE_SIM_ZONE[@]}"; do
+                        SIM_IPS+="$(get-instance-ip ${SIM_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
+                        RESOURCE_URLS+="$(get-instance-ip ${SIM_INSTANCE_PREFIX}-${zone}-${index} ${zone}):${SIM_PORT},"
+                        index=$((index + 1)) 
+                done
 
+        fi
         echo "Simulators started at ip addresss: ${SIM_IPS%,}"
 fi
 
 if [ ${CLIENT_NUM} -gt 0 ]; then
         CLIENT_IPS=""
-        index=0
-        for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
-                CLIENT_IPS+="$(get-instance-ip ${CLIENT_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
-                index=$((index + 1)) 
-        done
+        if [ ${#INSTANCE_CLIENT_ZONE[@]} == 1 ]; then
+                CLIENT_IPS="$(get-mig-ips ${CLIENT_INSTANCE_PREFIX}-${INSTANCE_CLIENT_ZONE[0]}-mig ${INSTANCE_CLIENT_ZONE[0]})"
+        else
+                index=0
+                for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
+                        CLIENT_IPS+="$(get-instance-ip ${CLIENT_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
+                        index=$((index + 1)) 
+                done
+
+        fi
         echo "Client schedulers started at ip addresss: ${CLIENT_IPS%,}"
 fi
 
@@ -358,13 +408,20 @@ if [ ${SERVER_NUM} -gt 0 ]; then
         SERVER_IPS=""
         SERVER_NAMES=""
         SERVICE_ZONE="${INSTANCE_SERVER_ZONE[0]}"
-        index=0
-        for zone in "${INSTANCE_SERVER_ZONE[@]}"; do
-                start-instance-redis "${SERVER_INSTANCE_PREFIX}-${zone}-${index}" "${zone}"
-                SERVER_IPS+="$(get-instance-ip ${SERVER_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
-                SERVER_NAMES+="${SERVER_INSTANCE_PREFIX}-${zone}-${index},"
-                index=$((index + 1)) 
-        done
+        if [ ${#INSTANCE_SERVER_ZONE[@]} == 1 ]; then
+                start-mig-redis "${SERVER_INSTANCE_PREFIX}-${INSTANCE_SERVER_ZONE[0]}-mig" "${INSTANCE_SERVER_ZONE[0]}"
+                SERVER_IPS="$(get-mig-ips ${SERVER_INSTANCE_PREFIX}-${INSTANCE_SERVER_ZONE[0]}-mig ${INSTANCE_SERVER_ZONE[0]})"
+                SERVER_NAMES="$(get-mig-names ${SERVER_INSTANCE_PREFIX}-${INSTANCE_SERVER_ZONE[0]}-mig ${INSTANCE_SERVER_ZONE[0]})"
+        else
+                index=0
+                for zone in "${INSTANCE_SERVER_ZONE[@]}"; do
+                        start-instance-redis "${SERVER_INSTANCE_PREFIX}-${zone}-${index}" "${zone}"
+                        SERVER_IPS+="$(get-instance-ip ${SERVER_INSTANCE_PREFIX}-${zone}-${index} ${zone}),"
+                        SERVER_NAMES+="${SERVER_INSTANCE_PREFIX}-${zone}-${index},"
+                        index=$((index + 1)) 
+                done
+
+        fi
         echo "Servers started at ip addresss: ${SERVER_IPS%,}"
 fi
 
@@ -378,8 +435,6 @@ echo "Done to create and start all required resouce"
 
 if [ "${AUTORUN_E2E}" == "true" ]; then
         #Starting e2e testing
-        echo "Starting service using args: --master_ip=${MASTER_IP} --resource_urls=${RESOURCE_URLS}"
-        echo "Starting scheduler using args: --service_url=${SERVICE_URL}"
         "${GRS_ROOT}/hack/test-rune2e.sh"
 else
         echo "You can start service using args: --master_ip=${MASTER_IP} --resource_urls=${RESOURCE_URLS}"

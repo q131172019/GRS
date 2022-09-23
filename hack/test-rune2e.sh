@@ -175,16 +175,35 @@ sleep 10
 
 if [ ${SIM_NUM} -gt 0 ]; then
         if [[ "${#SIM_REGION_LIST[@]}" == "${SIM_NUM}" ]]; then
-                index=0
-                for zone in "${INSTANCE_SIM_ZONE[@]}"; do
-                        extra_args="${SIM_EXTRA_ARGS}"
-                        extra_args+=" --data_pattern=${SIM_DATA_PATTERN}"
-                        if [[ "${SIM_DATA_PATTERN}" == "Outage" &&  "${SIM_DOWN_TIME_LIST[index]}" != "" ]]; then
-                                extra_args+=" --wait_time_for_make_rp_down=${SIM_DOWN_TIME_LIST[index]}"
-                        fi
-                        start-simulator "${SIM_INSTANCE_PREFIX}-${zone}-${index}" "${SIM_REGION_LIST[$index]}" "${SIM_RP_NUM}" "${NODES_PER_RP}" "${SIM_PORT}" "${zone}" "${SIM_LOG_LEVEL}" "${extra_args}"
-                        index=$(($index + 1)) 
-                done                  
+                if [ ${#INSTANCE_SIM_ZONE[@]} == 1 ]; then
+                        instance_names=()
+                        instance_names=($(gcloud compute instance-groups managed list-instances \
+                        "${SIM_INSTANCE_PREFIX}-${INSTANCE_SIM_ZONE[0]}-mig" --zone "${INSTANCE_SIM_ZONE[0]}" --project "${PROJECT}" \
+                        --format='value(instance)'))
+
+                        index=0
+                        for name in "${instance_names[@]}"; do
+                                extra_args="${SIM_EXTRA_ARGS}"
+                                extra_args+=" --data_pattern=${SIM_DATA_PATTERN}"
+                                if [[ "${SIM_DATA_PATTERN}" == "Outage" &&  "${SIM_DOWN_TIME_LIST[index]}" != "" ]]; then
+                                        extra_args+=" --wait_time_for_make_rp_down=${SIM_DOWN_TIME_LIST[index]}"
+                                fi
+                                start-simulator "${name}" "${SIM_REGION_LIST[$index]}" "${SIM_RP_NUM}" "${NODES_PER_RP}" "${SIM_PORT}" "${INSTANCE_SIM_ZONE[0]}" "${SIM_LOG_LEVEL}" "${extra_args}"
+                                index=$(($index + 1))
+                        done
+                else
+                        index=0
+                        for zone in "${INSTANCE_SIM_ZONE[@]}"; do
+                                extra_args="${SIM_EXTRA_ARGS}"
+                                extra_args+=" --data_pattern=${SIM_DATA_PATTERN}"
+                                if [[ "${SIM_DATA_PATTERN}" == "Outage" &&  "${SIM_DOWN_TIME_LIST[index]}" != "" ]]; then
+                                        extra_args+=" --wait_time_for_make_rp_down=${SIM_DOWN_TIME_LIST[index]}"
+                                fi
+                                start-simulator "${SIM_INSTANCE_PREFIX}-${zone}-${index}" "${SIM_REGION_LIST[$index]}" "${SIM_RP_NUM}" "${NODES_PER_RP}" "${SIM_PORT}" "${zone}" "${SIM_LOG_LEVEL}" "${extra_args}"
+                                index=$(($index + 1)) 
+                        done
+
+                fi                      
         else
                 echo "Failed to start simulator service, Please ensure SIM_REGIONS: ${SIM_REGIONS} has same number with SIM_NUM: ${SIM_NUM}"
         fi
@@ -195,16 +214,35 @@ sleep $(get-delay-second)
 
 if [ ${CLIENT_NUM} -gt 0 ]; then
         if [[ "${SERVICE_URL}" != "" ]]; then
-                index=0
-                service_num=$(((${SCHEDULER_NUM} + 1) / ${CLIENT_NUM}))
-                for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
-                        if [ $index == $((${CLIENT_NUM} - 1)) ]; then
-                                done_num=$((${service_num} * ${index} ))
-                                service_num=$((${SCHEDULER_NUM} - ${done_num}))
-                        fi
-                        start-scheduler "${CLIENT_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${service_num}" "${SERVICE_URL}" "${SCHEDULER_REQUEST_MACHINE}" "${SCHEDULER_REQUEST_LIMIT}"  "${CLIENT_LOG_LEVEL}" "${CLIENT_EXTRA_ARGS}"
-                        index=$(($index + 1)) 
-                done                  
+                if [ ${#INSTANCE_CLIENT_ZONE[@]} == 1 ]; then
+                        instance_names=()
+                        instance_names=($(gcloud compute instance-groups managed list-instances \
+                        "${CLIENT_INSTANCE_PREFIX}-${INSTANCE_CLIENT_ZONE[0]}-mig" --zone "${INSTANCE_CLIENT_ZONE[0]}" --project "${PROJECT}" \
+                        --format='value(instance)'))
+
+                        index=0
+                        service_num=$(((${SCHEDULER_NUM} + 1) / ${CLIENT_NUM}))
+                        for name in "${instance_names[@]}"; do
+                                if [ $index == $((${CLIENT_NUM} - 1)) ]; then
+                                        done_num=$((${service_num} * ${index} ))
+                                        service_num=$((${SCHEDULER_NUM} - ${done_num}))
+                                fi
+                                start-scheduler "${name}" "${INSTANCE_CLIENT_ZONE[0]}" "${service_num}" "${SERVICE_URL}" "${SCHEDULER_REQUEST_MACHINE}" "${SCHEDULER_REQUEST_LIMIT}"  "${CLIENT_LOG_LEVEL}" "${CLIENT_EXTRA_ARGS}"
+                                index=$(($index + 1))
+                        done
+                else
+                        index=0
+                        service_num=$(((${SCHEDULER_NUM} + 1) / ${CLIENT_NUM}))
+                        for zone in "${INSTANCE_CLIENT_ZONE[@]}"; do
+                                if [ $index == $((${CLIENT_NUM} - 1)) ]; then
+                                        done_num=$((${service_num} * ${index} ))
+                                        service_num=$((${SCHEDULER_NUM} - ${done_num}))
+                                fi
+                                start-scheduler "${CLIENT_INSTANCE_PREFIX}-${zone}-${index}" "${zone}" "${service_num}" "${SERVICE_URL}" "${SCHEDULER_REQUEST_MACHINE}" "${SCHEDULER_REQUEST_LIMIT}"  "${CLIENT_LOG_LEVEL}" "${CLIENT_EXTRA_ARGS}"
+                                index=$(($index + 1)) 
+                        done
+
+                fi                      
         else
                 echo "Failed to start scheduler service, Please ensure SERVICE_URL: ${SERVICE_URL} is correct"
         fi

@@ -195,6 +195,22 @@ Processing 1000 AddNode events took 1.924601ms.
 Processing 10000 AddNode events took 7.019417ms.
 Processing 100000 AddNode events took 62.484907ms.
 Processing 1000000 AddNode events took 867.098414ms.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints enabled
+Processing 10 AddNode events took 86.209µs.
+Processing 100 AddNode events took 369.59µs.
+Processing 1000 AddNode events took 2.503705ms.
+Processing 10000 AddNode events took 25.833047ms.
+Processing 100000 AddNode events took 212.483275ms.
+Processing 1000000 AddNode events took 2.78702993s.
+
+. Updated metrics data - 9/22/2022 main - PR 169 - with checkpoints disabled
+Processing 10 AddNode events took 136.435µs.
+Processing 100 AddNode events took 294.906µs.
+Processing 1000 AddNode events took 1.101831ms.
+Processing 10000 AddNode events took 6.30712ms.
+Processing 100000 AddNode events took 85.126281ms.
+Processing 1000000 AddNode events took 1.423102935s.
 */
 func TestAddNodes(t *testing.T) {
 	distributor := setUp()
