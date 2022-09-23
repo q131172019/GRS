@@ -55,7 +55,7 @@ func main() {
 	flag.IntVar(&testCfg.singleNodeNum, "single_node_num", 1, "Number of single node set requested from redis, default to 1")
 	flag.DurationVar(&testCfg.singleNodeInterval, "single_node_interval", 1*time.Second, "Query interval of single node, default to 1s")
 	flag.IntVar(&testCfg.batchNodeNum, "batch_node_num", 10, "Number of batch node, default to 0s")
-	flag.StringVar(&testConfig.remoteRedisPort, "remote_redis_port", "7379", "Remote redis port, if not set, default to 7379")
+	flag.StringVar(&testCfg.remoteRedisPort, "remote_redis_port", "7379", "Remote redis port, if not set, default to 7379")
 	flag.DurationVar(&testCfg.batchNodeInterval, "batch_node_interval", 1*time.Minute, "Query interval of batch node, default to 1m")
 
 	if !flag.Parsed() {
@@ -91,7 +91,7 @@ func main() {
 
 	// get multi nodes from redis for single node model and batch node model
 	remoteRedisIp := serviceInfo[0]
-	remoteRedisPort := testConfig.remoteRedisPort
+	remoteRedisPort := testCfg.remoteRedisPort
 	klog.V(3).Infof("Connecting the Redis server at %v:%v", remoteRedisIp, remoteRedisPort)
 	store := redis.NewRedisClient(remoteRedisIp, remoteRedisPort, false)
 	requiredNum := testCfg.batchNodeNum + testCfg.singleNodeNum
