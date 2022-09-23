@@ -99,7 +99,7 @@ func main() {
 	klog.Infof("Requesting nodes from redis server")
 	logicalNodes := store.BatchLogicalNodesInquiry(requiredNum)
 	endTime := time.Since(startTime)
-	klog.Infof("Total %v nodes required from redis server: %v, Total nodes got from redis: %v in duration: %v, detailes: %v\n", requiredNum, redisIp, len(logicalNodes), endTime, logicalNodes)
+	klog.Infof("Total %v nodes required from redis server: %v, Total nodes got from redis: %v in duration: %v, detailes: %v\n", requiredNum, remoteRedisIp, len(logicalNodes), endTime, logicalNodes)
 
 	//split nodes from redis to singleNodeSet and batchNodeSet
 	singleNodeSet := make([]*types.LogicalNode, testCfg.singleNodeNum)
