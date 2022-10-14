@@ -301,6 +301,7 @@ func createRandomRPNode(rv int) *k8sCoreV1.Node {
 				"beta.amd.com/gpu.family.AI":      "1",
 				"beta.amd.com/gpu.simd-count.256": "1",
 				"beta.amd.com/gpu.vram.16G":       "1",
+				"nvidia.com/gpu.product":          "ESLA-T4",
 			},
 			Annotations: map[string]string{
 				"flannel.alpha.coreos.com/backend-data":                  "null",
@@ -342,6 +343,7 @@ func createRandomRPNode(rv int) *k8sCoreV1.Node {
 				k8sCoreV1.ResourcePods:             *resource.NewQuantity(110, resource.DecimalSI),
 				"hugepages-1Gi":                    *resource.NewQuantity(0, resource.DecimalSI),
 				"hugepages-2Mi":                    *resource.NewQuantity(0, resource.DecimalSI),
+				"nvidia/gpu":                       *resource.NewQuantity(80, resource.DecimalSI),
 			},
 			Allocatable: k8sCoreV1.ResourceList{
 				k8sCoreV1.ResourceCPU:              *resource.NewQuantity(8, resource.DecimalSI),
