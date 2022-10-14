@@ -26,7 +26,9 @@ import (
 
 	"github.com/google/uuid"
 	k8sCoreV1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	//k8sCoreV1 "github.com/kubernetes/api/core/v1"
 	"k8s.io/klog/v2"
@@ -274,9 +276,159 @@ func makeDataUpdate(changesThreshold int) {
 }
 
 func createRandomRPNode(rv int) *k8sCoreV1.Node {
+	id := uuid.New()
+	var deleteGracePeriodSeconds int64 = 10
 
-	return &k8sCoreV1.Node{ObjectMeta: metav1.ObjectMeta{Name: "testRPNodeName"},
-		Spec: k8sCoreV1.NodeSpec{},
+	return &k8sCoreV1.Node{
+		TypeMeta: metav1.TypeMeta{Kind: "Node", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:                       "testRPNodeName",
+			Namespace:                  "default",
+			UID:                        k8sTypes.UID(id.String()),
+			ResourceVersion:            strconv.Itoa(rv),
+			Generation:                 0000001,
+			CreationTimestamp:          metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+			DeletionTimestamp:          &metav1.Time{},
+			DeletionGracePeriodSeconds: &deleteGracePeriodSeconds,
+			Labels: map[string]string{
+				"beta.kubernetes.io/arch": "amd64",
+				"beta.kubernets.io/os":    "linux",
+				"kubernetes.io/arch":      "amd64",
+				"kubernets.io/os":         "linux",
+			},
+			Annotations: map[string]string{
+				"flannel.alpha.coreos.com/backend-data":                  "null",
+				"flannel.alpha.coreos.com/backend-type":                  "host-gw",
+				"flannel.alpha.coreos.com/kube-subnet-manager":           "true",
+				"flannel.alpha.coreos.com/public-ip":                     "",
+				"node.alpha.kubernetes.io/ttl":                           "0",
+				"volumes.kubernetes.io/controller-managed-attach-detach": "true",
+			},
+			OwnerReferences: []metav1.OwnerReference{},
+			Finalizers:      []string{},
+			ManagedFields:   []metav1.ManagedFieldsEntry{},
+		},
+		Spec: k8sCoreV1.NodeSpec{
+			PodCIDR:       "10.244.1.0/24",
+			PodCIDRs:      []string{"10.245.0.0", "10.246.0.0"},
+			ProviderID:    "AWS",
+			Unschedulable: false,
+			Taints: []k8sCoreV1.Taint{
+				{
+					Key:    "foo_1",
+					Value:  "bar_1",
+					Effect: k8sCoreV1.TaintEffectNoExecute,
+				},
+				{
+					Key:    "foo_2",
+					Value:  "bar_2",
+					Effect: k8sCoreV1.TaintEffectNoSchedule,
+				},
+			},
+		},
+		Status: k8sCoreV1.NodeStatus{
+			Capacity: k8sCoreV1.ResourceList{
+				k8sCoreV1.ResourceCPU:              *resource.NewQuantity(8, resource.DecimalSI),
+				k8sCoreV1.ResourceMemory:           *resource.NewQuantity(32886512000, resource.BinarySI),
+				k8sCoreV1.ResourceEphemeralStorage: *resource.NewQuantity(203234260000, resource.DecimalSI),
+				k8sCoreV1.ResourcePods:             *resource.NewQuantity(110, resource.DecimalSI),
+				"hugepages-1Gi":                    *resource.NewQuantity(0, resource.DecimalSI),
+				"hugepages-2Mi":                    *resource.NewQuantity(0, resource.DecimalSI),
+			},
+			Allocatable: k8sCoreV1.ResourceList{
+				k8sCoreV1.ResourceCPU:              *resource.NewQuantity(8, resource.DecimalSI),
+				k8sCoreV1.ResourceMemory:           *resource.NewQuantity(32784112000, resource.BinarySI),
+				k8sCoreV1.ResourceEphemeralStorage: *resource.NewQuantity(187300693706, resource.DecimalSI),
+				k8sCoreV1.ResourcePods:             *resource.NewQuantity(110, resource.DecimalSI),
+				"hugepages-1Gi":                    *resource.NewQuantity(0, resource.DecimalSI),
+				"hugepages-2Mi":                    *resource.NewQuantity(0, resource.DecimalSI),
+			},
+			Phase: k8sCoreV1.NodePhase("Running"),
+			Conditions: []k8sCoreV1.NodeCondition{
+				{
+					Type:               k8sCoreV1.NodeReady,
+					Status:             k8sCoreV1.ConditionTrue,
+					LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+					LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+				},
+			},
+			Addresses: []k8sCoreV1.NodeAddress{
+				{Type: k8sCoreV1.NodeInternalIP, Address: "10.1.1.1"},
+				{Type: k8sCoreV1.NodeHostName, Address: "ip-10-1-1-1"},
+				{Type: k8sCoreV1.NodeExternalIP, Address: "172.31.29.128"},
+			},
+			DaemonEndpoints: k8sCoreV1.NodeDaemonEndpoints{
+				KubeletEndpoint: k8sCoreV1.DaemonEndpoint{
+					Port: 9000,
+				},
+			},
+			NodeInfo: k8sCoreV1.NodeSystemInfo{
+				MachineID:               "5c43df28985a4cec815b53269ac8c12e",
+				SystemUUID:              id.String(),
+				BootID:                  id.String(),
+				KernelVersion:           "5.4.0-1059-aws",
+				OSImage:                 "Ubuntu 20.04.6 LTS",
+				OperatingSystem:         "linux",
+				Architecture:            "amd64",
+				ContainerRuntimeVersion: "containerd://1.5.5",
+				KubeletVersion:          "v1.0.0",
+				KubeProxyVersion:        "v0.9.0",
+			},
+			Images: []k8sCoreV1.ContainerImage{
+				{
+					Names:     []string{"gcr.io/100:v1"},
+					SizeBytes: int64(10000000),
+				},
+				{
+					Names:     []string{"gcr.io/200:v1"},
+					SizeBytes: int64(20000000),
+				},
+			},
+			VolumesInUse: []k8sCoreV1.UniqueVolumeName{
+				"fake/fake-device1",
+				"fake/fake-device2",
+			},
+			VolumesAttached: []k8sCoreV1.AttachedVolume{
+				{
+					Name:       "fake/fake-device1",
+					DevicePath: "fake/fake-path1",
+				},
+				{
+					Name:       "fake/fake-device2",
+					DevicePath: "fake/fake-path2",
+				},
+			},
+			Config: &k8sCoreV1.NodeConfigStatus{
+				Assigned: &k8sCoreV1.NodeConfigSource{
+					ConfigMap: &k8sCoreV1.ConfigMapNodeConfigSource{
+						Namespace:        "default",
+						Name:             "bar",
+						KubeletConfigKey: "kubelet",
+						UID:              k8sTypes.UID(id.String()),
+						ResourceVersion:  "1000000",
+					},
+				},
+				Active: &k8sCoreV1.NodeConfigSource{
+					ConfigMap: &k8sCoreV1.ConfigMapNodeConfigSource{
+						Namespace:        "default",
+						Name:             "bar",
+						KubeletConfigKey: "kubelet",
+						UID:              k8sTypes.UID(id.String()),
+						ResourceVersion:  "1000000",
+					},
+				},
+				LastKnownGood: &k8sCoreV1.NodeConfigSource{
+					ConfigMap: &k8sCoreV1.ConfigMapNodeConfigSource{
+						Namespace:        "default",
+						Name:             "bar",
+						KubeletConfigKey: "kubelet",
+						UID:              k8sTypes.UID(id.String()),
+						ResourceVersion:  "1000000",
+					},
+				},
+				Error: "No error",
+			},
+		},
 	}
 }
 
